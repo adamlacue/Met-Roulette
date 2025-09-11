@@ -2,7 +2,7 @@ import { MaterialCommunityIcons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
-import React, { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
@@ -23,7 +23,7 @@ const BASE = "https://collectionapi.metmuseum.org/public/collection/v1";
 const STORAGE_KEYS = { IDS: "metObjectIDs" };
 
 function yyyymmdd(d = new Date()) {
-  return d.toISOString().slice(0, 10).replaceAll("-", ""); // e.g. 20250910
+  return d.toISOString().slice(0, 10).replace(/-/g, ""); // e.g. 20250910
 }
 
 export default function TabHome() {
@@ -177,7 +177,16 @@ async function saveCurrentImage() {
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }
       >
-        <Text style={styles.h1}>The Met Roulette</Text>
+        <View style={styles.brandBar}>
+          <Image
+            source={require("../assets/images/met-logo.png")}
+            style={styles.brandLogo}
+            resizeMode="contain"
+            accessible
+            accessibilityLabel="The Met"
+          />
+          <Text style={styles.brandText}>Roulette</Text>
+        </View>
 
         <View style={styles.controls}>
           <Pressable onPress={shuffle} style={styles.btn} accessibilityLabel="Shuffle artwork">
@@ -246,7 +255,6 @@ const styles = StyleSheet.create({
     backgroundColor: "#e4002b",   // 🔴 Met red
     paddingVertical: 6,
     paddingHorizontal: 12,
-    borderRadius: 8,              // optional: soften corners
     overflow: "hidden",   
   },
   controls: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
@@ -285,5 +293,24 @@ const styles = StyleSheet.create({
     fontFamily: "PlayfairDisplay_400Regular",
   },
   safe: { flex: 1, backgroundColor: "#101014" },
+  brandBar: {
+    backgroundColor: "#e4002b",   // ← note the leading #
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,                       // RN 0.71+; otherwise use marginLeft on text
+  },
+  brandLogo: {
+    height: 34,                   // tweak to taste
+    width: 40,                   // keep proportion of your PNG
+  },
+  brandText: {
+    color: "#fff",
+    fontFamily: "PlayfairDisplay_400Regular",
+    fontSize: 30,
+    // marginLeft: 8,              // use this if your RN version doesn’t support gap
+  },
   
 });
