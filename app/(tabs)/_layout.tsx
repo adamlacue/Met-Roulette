@@ -1,4 +1,4 @@
-import { Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 
 export default function TabsLayout() {
@@ -16,7 +16,7 @@ export default function TabsLayout() {
         options={{
           title: "The Met",
           tabBarIcon: ({ color, size }) => (
-            <Ionicons name="image-outline" color={color} size={size} />
+            <MaterialCommunityIcons name="city-variant-outline" color={color} size={size} />
           ),
         }}
       />
@@ -26,6 +26,15 @@ export default function TabsLayout() {
           title: "AIC",
           tabBarIcon: ({ color, size }) => (
             <MaterialCommunityIcons name="bank" color={color} size={size} />
+          ),
+        }}
+      />
+      <Tabs.Screen
+        name="cma"
+        options={{
+          title: "CMA",
+          tabBarIcon: ({ color, size }) => (
+            <MaterialCommunityIcons name="palette-outline" color={color} size={size} />
           ),
         }}
       />

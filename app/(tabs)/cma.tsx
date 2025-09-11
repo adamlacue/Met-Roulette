@@ -1,4 +1,4 @@
-// app/(tabs)/aic.tsx
+// app/(tabs)/cma.tsx
 import { MaterialCommunityIcons } from "@expo/vector-icons";
 import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
@@ -18,39 +18,42 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-const BASE = "https://api.artic.edu/api/v1";
+const BASE = "https://openaccess-api.clevelandart.org/api";
 
-// Build a random search that only returns public-domain artworks with images.
-// We pick a random "from" offset (kept under 9000 to stay well within the 10k window).
-function aicRandomSearchUrl(size = 20) {
-  const MAX_FROM = 9000; // stay below 10k search window
-  const from = Math.floor(Math.random() * MAX_FROM);
-  const params = {
-    query: {
-      bool: {
-        must: [
-          { term: { is_public_domain: true } },
-          { exists: { field: "image_id" } }
-        ]
-      }
-    },
+// Build a random artworks query (CC0 + has image), using skip/limit pagination.
+// We grab a small batch and pick a random candidate from it.
+function cmaRandomUrl(limit = 12) {
+  // CMA API supports skip/limit; pick a random skip in a safe range.
+  // Using 0..5000 as a conservative window (API reports larger totals,
+  // but this keeps requests fast and within comfortable bounds).
+  const MAX_SKIP = 5000;
+  const skip = Math.floor(Math.random() * MAX_SKIP);
+
+  // Request only CC0 + has image. Ask for useful fields.
+  const params = new URLSearchParams({
+    cc0: "1",
+    has_image: "1",
+    limit: String(limit),
+    skip: String(skip),
+    // Select common fields; API ignores unknown fields gracefully.
+    // (title, creators, creation_date, department, creditline, url, images)
     fields: [
       "id",
       "title",
-      "artist_display",
-      "date_display",
-      "image_id",
-      "department_title",
-      "credit_line"
-    ],
-    size,
-    from
-  };
-  return `${BASE}/artworks/search?params=${encodeURIComponent(JSON.stringify(params))}`;
+      "creators",
+      "creation_date",
+      "department",
+      "creditline",
+      "url",
+      "images",
+      "share_license_status",
+    ].join(","),
+  });
+
+  return `${BASE}/artworks?${params.toString()}`;
 }
 
-
-export default function AICRoulette() {
+export default function CMARoulette() {
   const [loading, setLoading] = useState(true);
   const [art, setArt] = useState<null | {
     id: number;
@@ -74,82 +77,102 @@ export default function AICRoulette() {
     setTimeout(() => setRefreshing(false), 400);
   }, []);
 
-  // Fetch a random AIC artwork (PD + has image)
-    useEffect(() => {
-        let cancelled = false;
+  // Fetch a random CMA artwork (CC0 + has image)
+  useEffect(() => {
+    let cancelled = false;
 
-        async function pickRandomAIC() {
-            setLoading(true);
-            setError("");
-            setArt(null);
+    async function pickRandomCMA() {
+      setLoading(true);
+      setError("");
+      setArt(null);
 
-            const ATTEMPTS = 12;     // try up to 12 different random windows
-            const BATCH_SIZE = 10;   // grab 10 at a time to improve odds
+      const ATTEMPTS = 12;     // number of random windows to try
+      const BATCH_SIZE = 12;   // items per window
 
-            try {
-            for (let attempt = 0; attempt < ATTEMPTS && !cancelled; attempt++) {
-                const res = await fetch(aicRandomSearchUrl(BATCH_SIZE));
-                const json = await res.json();
+      try {
+        for (let i = 0; i < ATTEMPTS && !cancelled; i++) {
+          const res = await fetch(cmaRandomUrl(BATCH_SIZE));
+          const json = await res.json();
 
-                const items: any[] = Array.isArray(json?.data) ? json.data : [];
-                // filter to only entries that actually have an image_id
-                const candidates = items.filter(it => !!it?.image_id);
+          const items: any[] = Array.isArray(json?.data) ? json.data : [];
 
-                if (candidates.length) {
-                // pick one at random from this batch
-                const item = candidates[Math.floor(Math.random() * candidates.length)];
+          // Keep only items that really look usable (cc0 + has a web image)
+          const candidates = items.filter((it) => {
+            const webUrl =
+              it?.images?.web?.url ||
+              it?.images?.web?.large ||
+              it?.images?.web?.filename ||
+              it?.images?.print?.url;
+            const licenseOk =
+              it?.share_license_status?.toLowerCase?.() === "cc0" || true; // cc0=1 already filters
+            return !!webUrl && licenseOk;
+          });
 
-                const iiifBase: string = json?.config?.iiif_url || "https://www.artic.edu/iiif/2";
-                const img = `${iiifBase}/${item.image_id}/full/843,/0/default.jpg`;
+          if (candidates.length) {
+            const pick =
+              candidates[Math.floor(Math.random() * candidates.length)];
 
-                if (!cancelled) {
-                    setArt({
-                    id: item.id,
-                    title: item.title || "Untitled",
-                    artist: item.artist_display || "Unknown",
-                    date: item.date_display || "",
-                    img,
-                    url: `https://www.artic.edu/artworks/${item.id}`,
-                    department: item.department_title,
-                    creditLine: item.credit_line,
-                    });
-                    setLoading(false);
-                }
-                return; // done
-                }
-                // otherwise loop and try another random window
-            }
+            const imgUrl =
+              pick?.images?.web?.url ||
+              pick?.images?.web?.large ||
+              pick?.images?.print?.url;
 
-            // if we fell out of the loop without finding anything:
+            if (!imgUrl) continue;
+
+            const title = pick?.title || "Untitled";
+            // CMA creators is usually an array with name and role
+            const artist =
+              Array.isArray(pick?.creators) && pick.creators.length
+                ? pick.creators.map((c: any) => c?.description || c?.role || c?.name).filter(Boolean).join(", ")
+                : "Unknown";
+
             if (!cancelled) {
-                setError("Couldn’t find an AIC image right now. Pull to refresh.");
-                setLoading(false);
+              setArt({
+                id: pick.id,
+                title,
+                artist,
+                date: pick?.creation_date || "",
+                img: imgUrl,
+                url: pick?.url || `https://www.clevelandart.org/art/${pick?.id}`,
+                department: pick?.department,
+                creditLine: pick?.creditline,
+              });
+              setLoading(false);
             }
-            } catch (e) {
-            if (!cancelled) {
-                setError("Couldn’t find an AIC image right now. Pull to refresh.");
-                setLoading(false);
-            }
-            }
+            return;
+          }
         }
 
-        pickRandomAIC();
-        return () => { cancelled = true; };
-    }, [randomKey]);
+        if (!cancelled) {
+          setError("Couldn’t find a CMA image right now. Pull to refresh.");
+          setLoading(false);
+        }
+      } catch {
+        if (!cancelled) {
+          setError("Couldn’t find a CMA image right now. Pull to refresh.");
+          setLoading(false);
+        }
+      }
+    }
 
+    pickRandomCMA();
+    return () => {
+      cancelled = true;
+    };
+  }, [randomKey]);
 
   // Long-press to save current image
   async function saveCurrentImage() {
     if (!art?.img) return;
     try {
       const url = art.img.replace(/^http:/, "https:");
-      const fileUri = `${FileSystem.cacheDirectory}aic-${art.id}.jpg`;
+      const fileUri = `${FileSystem.cacheDirectory}cma-${art.id}.jpg`;
       const dl = await FileSystem.downloadAsync(url, fileUri);
 
       if (Platform.OS === "web") {
         const a = document.createElement("a");
         a.href = dl.uri;
-        a.download = `aic-${art.id}.jpg`;
+        a.download = `cma-${art.id}.jpg`;
         document.body.appendChild(a);
         a.click();
         a.remove();
@@ -172,34 +195,22 @@ export default function AICRoulette() {
     <SafeAreaView style={styles.safe}>
       <ScrollView
         contentContainerStyle={styles.container}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
-
         <View style={styles.brandBar}>
             <Image
-            source={require("../../assets/images/aic-logo.png")}
+            source={require("../../assets/images/cma-logo.png")}
             style={styles.brandLogo}
             resizeMode="contain"
             accessible
-            accessibilityLabel="AIC"
+            accessibilityLabel="CMA"
             />
             <Text style={styles.brandText}>Roulette</Text>
         </View>
 
         <View style={styles.controls}>
-          <Pressable
-            onPress={shuffle}
-            style={styles.btn}
-            accessibilityLabel="Shuffle artwork"
-          >
-            <MaterialCommunityIcons
-              name="shuffle"
-              size={18}
-              color="#fff"
-              style={{ marginRight: 8 }}
-            />
+          <Pressable onPress={shuffle} style={styles.btn} accessibilityLabel="Shuffle artwork">
+            <MaterialCommunityIcons name="shuffle" size={18} color="#fff" style={{ marginRight: 8 }} />
             <Text style={styles.btnText}>Random</Text>
           </Pressable>
         </View>
@@ -231,18 +242,13 @@ export default function AICRoulette() {
             <View style={styles.meta}>
               <Text style={styles.title}>{art.title}</Text>
               <Text style={styles.byline}>
-                {art.artist}
-                {art.date ? ` — ${art.date}` : ""}
+                {art.artist}{art.date ? ` — ${art.date}` : ""}
               </Text>
-              {art.department ? (
-                <Text style={styles.muted}>{art.department}</Text>
-              ) : null}
-              {art.creditLine ? (
-                <Text style={styles.muted}>{art.creditLine}</Text>
-              ) : null}
+              {art.department ? <Text style={styles.muted}>{art.department}</Text> : null}
+              {art.creditLine ? <Text style={styles.muted}>{art.creditLine}</Text> : null}
               {!!art.url && (
                 <Text style={styles.link} onPress={() => Linking.openURL(art.url)}>
-                  View on AIC (CC0)
+                  View on CMA (CC0)
                 </Text>
               )}
               <Text style={styles.caption}>Artwork ID: {art.id}</Text>
@@ -251,7 +257,7 @@ export default function AICRoulette() {
         )}
 
         <Text style={styles.footer}>
-          Images courtesy of the Art Institute of Chicago (Public Domain/CC0).
+          Images courtesy of the Cleveland Museum of Art (Public Domain/CC0).
         </Text>
       </ScrollView>
     </SafeAreaView>
@@ -262,7 +268,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: "#101014" },
   container: { padding: 16, gap: 16, minHeight: "100%", backgroundColor: "#101014" },
   brandBar: {
-    backgroundColor: "#fff",
+    backgroundColor: "#ffffff",
     paddingVertical: 10,
     paddingHorizontal: 16,
     flexDirection: "row",
@@ -270,13 +276,11 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 8,  
   },
-  brandText: { color: "#181a20", fontSize: 30, fontFamily: "PlayfairDisplay_400Regular" },
-
   brandLogo: {
     height: 34,                   // tweak to taste
     width: 40,                   // keep proportion of your PNG
   },
-  
+  brandText: { color: "#181a20", fontSize: 30, fontFamily: "PlayfairDisplay_400Regular" },
   controls: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
   center: { alignItems: "center", padding: 24 },
   muted: { color: "#9aa0a6", marginTop: 8, textAlign: "center" },
@@ -285,11 +289,7 @@ const styles = StyleSheet.create({
   image: { width: "100%", height: 360, borderRadius: 12, backgroundColor: "#0f1115" },
   meta: { marginTop: 12, gap: 4 },
   title: { fontSize: 18, color: "white", fontFamily: "PlayfairDisplay_700Bold", textAlign: "center" },
-  byline: { 
-    color: "white", 
-    textAlign: "center",
-    fontFamily: "PlayfairDisplay_400Regular",
-    },
+  byline: { color: "white", textAlign: "center", fontFamily: "PlayfairDisplay_400Regular", },
   link: { color: "#8ab4f8", marginTop: 6 },
   caption: { color: "#9aa0a6", marginTop: 4, fontSize: 12 },
   footer: { color: "#9aa0a6", textAlign: "center", marginVertical: 24 },
@@ -305,5 +305,5 @@ const styles = StyleSheet.create({
     color: "white", 
     fontWeight: "700",
     fontFamily: "PlayfairDisplay_400Regular",
-    },
+},
 });
