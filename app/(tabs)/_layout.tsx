@@ -34,7 +34,7 @@ export default function TabsLayout() {
         options={{
           title: "CMA",
           tabBarIcon: ({ color, size }) => (
-            <MaterialCommunityIcons name="palette-outline" color={color} size={size} />
+            <MaterialCommunityIcons name="image-frame" color={color} size={size} />
           ),
         }}
       />

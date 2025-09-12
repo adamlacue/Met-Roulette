@@ -4,17 +4,17 @@ import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Linking,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -130,7 +130,7 @@ async function saveCurrentImage() {
       setArt(null);
       setError("");
 
-      const startIndex = Math.floor(Math.random() * ids.length); // use startIndex consistently
+      const startIndex = Math.floor(Math.random() * ids.length);
       const TRY_LIMIT = 200;
       const STRIDE = 9973;
 
@@ -268,7 +268,7 @@ const styles = StyleSheet.create({
   title: { 
     fontSize: 18, 
     color: "white",
-    fontFamily: "PlayfairDisplay_700Bold", // NEW
+    fontFamily: "PlayfairDisplay_700Bold",
     textAlign: "center",
   },
   byline: {
@@ -294,23 +294,22 @@ const styles = StyleSheet.create({
   },
   safe: { flex: 1, backgroundColor: "#101014" },
   brandBar: {
-    backgroundColor: "#e4002b",   // ← note the leading #
+    backgroundColor: "#e4002b",  
     paddingVertical: 10,
     paddingHorizontal: 16,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,                       // RN 0.71+; otherwise use marginLeft on text
+    gap: 8,                       
   },
   brandLogo: {
-    height: 34,                   // tweak to taste
-    width: 40,                   // keep proportion of your PNG
+    height: 34,                   
+    width: 40,                  
   },
   brandText: {
     color: "#fff",
     fontFamily: "PlayfairDisplay_400Regular",
     fontSize: 30,
-    // marginLeft: 8,              // use this if your RN version doesn’t support gap
   },
   
 });

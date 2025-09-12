@@ -4,52 +4,43 @@ import * as FileSystem from "expo-file-system";
 import * as MediaLibrary from "expo-media-library";
 import { useCallback, useEffect, useState } from "react";
 import {
-    ActivityIndicator,
-    Alert,
-    Image,
-    Linking,
-    Platform,
-    Pressable,
-    RefreshControl,
-    ScrollView,
-    StyleSheet,
-    Text,
-    View,
+  ActivityIndicator,
+  Alert,
+  Image,
+  Linking,
+  Platform,
+  Pressable,
+  RefreshControl,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 const BASE = "https://openaccess-api.clevelandart.org/api";
 
-// Build a random artworks query (CC0 + has image), using skip/limit pagination.
-// We grab a small batch and pick a random candidate from it.
-function cmaRandomUrl(limit = 12) {
-  // CMA API supports skip/limit; pick a random skip in a safe range.
-  // Using 0..5000 as a conservative window (API reports larger totals,
-  // but this keeps requests fast and within comfortable bounds).
-  const MAX_SKIP = 5000;
-  const skip = Math.floor(Math.random() * MAX_SKIP);
+async function getCmaTotal() {
+  // Ask for 1 item; read info.total for cc0+has_image universe
+  const url = `${BASE}/artworks?cc0=1&has_image=1&limit=1&fields=id`;
+  const res = await fetch(url);
+  const json = await res.json();
+  return Number(json?.info?.total ?? 0);
+}
 
-  // Request only CC0 + has image. Ask for useful fields.
+function cmaRandomUrl(total: number, limit = 12) {
+  const maxSkip = Math.max(0, total - limit);
+  const skip = Math.floor(Math.random() * (maxSkip + 1));
   const params = new URLSearchParams({
     cc0: "1",
     has_image: "1",
     limit: String(limit),
     skip: String(skip),
-    // Select common fields; API ignores unknown fields gracefully.
-    // (title, creators, creation_date, department, creditline, url, images)
     fields: [
-      "id",
-      "title",
-      "creators",
-      "creation_date",
-      "department",
-      "creditline",
-      "url",
-      "images",
-      "share_license_status",
+      "id","title","creators","creation_date","department",
+      "creditline","url","images","share_license_status"
     ].join(","),
   });
-
   return `${BASE}/artworks?${params.toString()}`;
 }
 
@@ -91,7 +82,8 @@ export default function CMARoulette() {
 
       try {
         for (let i = 0; i < ATTEMPTS && !cancelled; i++) {
-          const res = await fetch(cmaRandomUrl(BATCH_SIZE));
+          const total = await getCmaTotal();          // e.g., ~37,000+
+          const res = await fetch(cmaRandomUrl(total, BATCH_SIZE));
           const json = await res.json();
 
           const items: any[] = Array.isArray(json?.data) ? json.data : [];
@@ -277,8 +269,8 @@ const styles = StyleSheet.create({
     gap: 8,  
   },
   brandLogo: {
-    height: 34,                   // tweak to taste
-    width: 40,                   // keep proportion of your PNG
+    height: 34,                  
+    width: 40,                   
   },
   brandText: { color: "#181a20", fontSize: 30, fontFamily: "PlayfairDisplay_400Regular" },
   controls: { flexDirection: "row", justifyContent: "center", alignItems: "center" },
