@@ -92,6 +92,6 @@ Join our community of developers creating universal apps.
 
 ## Creative Commons License Links
 
-https://www.metmuseum.org/about-the-met/policies-and-documents/open-access
-https://www.artic.edu/image-licensing
-https://www.clevelandart.org/open-access
+- [The Met](https://www.metmuseum.org/about-the-met/policies-and-documents/open-access)
+- [Art Institute of Chicago](https://www.artic.edu/image-licensing)
+- [Cleveland Museum of Art](https://www.clevelandart.org/open-access)
